@@ -1,5 +1,5 @@
 #!/bin/bash
-#{{{ README 
+#README {{{
 # firebrand - a script to brand firefox without recompilation
 #
 # This script replaces and changes (a few) files in an existing firefox
@@ -10,9 +10,12 @@
 # To revert to the original brand, simply reinstall firefox.
 #
 # Dependencies: wget, unzip, zip
+#
+# AUR...: https://aur.archlinux.org/packages.php?ID=34559
+# FORUM.: https://bbs.archlinux.org/viewtopic.php?id=44320
 #}}}
 
-#{{{ config 
+#config {{{
 # Where firefox's data files resides. Usually something like
 # /usr/lib/firefox-3.6. If empty, autodetection is attempted.
 FXDIR=""
@@ -26,7 +29,7 @@ NEWICONSDIR=""
 SOURCEBASE="http://mxr.mozilla.org/mozilla1.9.1/source"
 #}}}
 
-#{{{ function: die 
+#function die {{{
 die() {
   local EXITCODE="${1:-9}"
   local MESSAGE="$2"
@@ -36,7 +39,7 @@ die() {
 }
 #}}}
 
-#{{{ function: get_icon 
+#function: get_icon {{{
 get_icon() {
   local ICON="$1"
   local SOURCEFILE="$2"
@@ -63,7 +66,7 @@ get_icon() {
 }
 #}}}
 
-#{{{ requires 
+#requires {{{
 if [ $EUID -ne 0 ]; then
   die 1 "This script should be run as root."
 fi
@@ -75,10 +78,10 @@ for EXEC in wget unzip zip; do
 done
 #}}}
 
-#{{{ find_application_dir 
+#find_application_dir {{{
 if [ "x$FXDIR" == "x" ]; then
   FXDIR=$(ls -1d /usr/lib/firefox-* | sort | tail -1)
-  if [ "x$FXDIR" == "x" ]; then
+  if [ "x$FXDIR" == "x" ] ; then
     die 1 "Could not find the Firefox data directory."
   fi
   echo "Firefox data directory is $FXDIR."
@@ -89,7 +92,7 @@ if [ ! -d "$FXDIR" ]; then
 fi
 #}}}
 
-#{{{ set_dirs 
+#set_dirs {{{
 CHROMEDIR=$FXDIR/chrome            # Simply the firefox chrome directory.
 
 BRAND_DTD="locale/branding/brand.dtd"
@@ -101,18 +104,18 @@ if [ $? -ne 0 ]; then
   die 1 "Could not create temporary work directory."
 fi
 
-if [ "x$NEWICONSDIR" == "x" ]; then
+if [ "x$NEWICONSDIR" == "x" ] ; then
   NEWICONSDIR=$(mktemp -d -t firebrand-icon-XXXXXXXX)
   if [ $? -ne 0 ]; then
     die 1 "Could not create temporary icon directory."
   fi
 else
   [ -e "$NEWICONSDIR" ] || mkdir -p "$NEWICONSDIR" || \
-  die 1 "Could not create icon directory $NEWICONSDIR."
+    die 1 "Could not create icon directory $NEWICONSDIR."
 fi
 #}}}
 
-#{{{ get_icons 
+#get_icons {{{
 echo -e "\033[1mChecking replacement icons\033[0m"
 SOURCESUBBASE="/other-licenses/branding/firefox/"
 get_icon "mozicon50.xpm"    "${SOURCESUBBASE}/mozicon50.xpm?raw=1"
@@ -133,56 +136,65 @@ get_icon "default256.png"   "${SOURCESUBBASE}/default256.png?raw=1"
 cp "$NEWICONSDIR/mozicon50.xpm" "$NEWICONSDIR/default.xpm"
 #}}}
 
-#{{{ branding 
+#branding {{{
 echo -e "\033[1mBranding chrome/en-US.jar\033[0m"
 echo -n " - Unzipping branding files in chrome/en-US.jar to temporary directory... "
 unzip -q -d "$TEMPDIR" "$CHROMEDIR/en-US.jar" $BRAND_DTD $BRAND_PRO && \
-echo "Done." || die 1 "Failed."
+  echo "Done." || die 1 "Failed."
 
-sed -r -i 's_((brandShortName|brandFullName)[ \t]+)"[^"]+"_\1"Firefox"_g' \
-$TEMPDIR/$BRAND_DTD && echo ' - Edited brand.dtd' || \
-die 1 'Could not edit brand.dtd.'
+#brand.dtd
+sed -r -i 's_(brandShortName[ \t]+)"[^"]+"_\1"Firefox"_g' \
+  $TEMPDIR/$BRAND_DTD && echo ' - Edited brand.dtd' || \
+  die 1 'Could not edit brand.dtd.'
 
-sed -r -i 's_^(brandShortName|brandFullName)=.*$_\1=Firefox_g' \
-$TEMPDIR/$BRAND_PRO && echo " - Edited brand.properties" || \
-die 1 "Could not edit brand.properties."
+sed -r -i 's_(brandFullName[ \t]+)"[^"]+"_\1"Mozilla Firefox"_g' $TEMPDIR/$BRAND_DTD
+sed -r -i 's_(vendorShortName[ \t]+)"[^"]+"_\1"Mozilla"_g' $TEMPDIR/$BRAND_DTD
+sed -r -i 's_(logoCopyright[ \t]+)"[^"]+"_\1"Firefox and the Firefox logos are trademarks of the Mozilla Foundation. All rights reserved."_g' $TEMPDIR/$BRAND_DTD
+
+#brand.properties
+sed -r -i 's_^(brandShortName)=.*$_\1=Firefox_g' \
+  $TEMPDIR/$BRAND_PRO && echo " - Edited brand.properties" || \
+  die 1 "Could not edit brand.properties."
+
+sed -r -i 's_^(brandFullName)=.*$_\1=Mozilla Firefox_g' $TEMPDIR/$BRAND_PRO
+sed -r -i 's_^(vendorShortName)=.*$_\1=Mozilla_g' $TEMPDIR/$BRAND_PRO
 
 echo -n " - Replacing old branding files in chrome/en-US.jar... "
 ( cd $TEMPDIR && zip -q -r "$CHROMEDIR/en-US.jar" locale/branding/* ) && \
-echo "Done." || die 1 "Failed."
+  echo "Done." || die 1 "Failed."
 
 echo -e "\033[1mBranding chrome/browser.jar\033[0m"
 echo -n " - Making new branding icon structure in temporary directory... "
 mkdir -p "$TEMPDIR/$CBRAND" || die 1 "Could not create $TEMPDIR/$CBRAND."
 cp "$NEWICONSDIR"/{about.png,aboutCredits.png,aboutFooter.png,icon48.png,icon64.png} \
-"$TEMPDIR/$CBRAND/" || die 1 "Could not copy new icons to $TEMPDIR/$CBRAND/."
+  "$TEMPDIR/$CBRAND/" || die 1 "Could not copy new icons to $TEMPDIR/$CBRAND/."
 echo "Done."
 
 echo -n " - Replacing old branding icon structure in chrome/browser.jar... "
 ( cd $TEMPDIR && zip -q -r "$CHROMEDIR/browser.jar" $CBRAND/* ) && \
-echo "Done." || die 1 "Failed."
+  echo "Done." || die 1 "Failed."
 
 echo -e "\033[1mBranding defaults/preferences/firefox.js\033[0m"
 sed -r -i 's_^(pref\("general.useragent.extra.firefox", ")[^/]+(/.*"\);[ \t]*)$_\1Firefox\2_' \
-$FXDIR/defaults/preferences/firefox.js && \
-echo " - Successfully edited $FXDIR/defaults/preferences/firefox.js." || \
-die 1 "Could not edit $FXDIR/defaults/preferences/firefox.js."
+  $FXDIR/defaults/preferences/firefox.js && \
+  echo " - Successfully edited $FXDIR/defaults/preferences/firefox.js." || \
+  die 1 "Could not edit $FXDIR/defaults/preferences/firefox.js."
 
 echo -e "\033[1mBranding icons\033[0m"
 echo -n " - Replacing icons in chrome/icons/default/... "
 cp "$NEWICONSDIR"/{default256.png,default48.png,default32.png,default24.png,default22.png,default16.png} \
-$CHROMEDIR/icons/default/ && echo "Done." || die 1 "Failed."
+  $CHROMEDIR/icons/default/ && echo "Done." || die 1 "Failed."
 
 echo -n " - Replacing icons in icons/... "
 cp "$NEWICONSDIR"/{document.png,mozicon128.png,mozicon16.xpm,mozicon50.xpm} \
-$FXDIR/icons/ && echo "Done." || die 1 "Failed."
+  $FXDIR/icons/ && echo "Done." || die 1 "Failed."
 
 chmod 644 $CHROMEDIR/icons/default/* $FXDIR/icons/*
 chown root:root $CHROMEDIR/icons/default/* $FXDIR/icons/*
 
 echo -n " - Replacing /usr/share/pixmaps/firefox.png: "
 cp "$NEWICONSDIR/icon64.png" "/usr/share/pixmaps/firefox.png" && \
-echo "Done." || die 1 "Failed."
+  echo "Done." || die 1 "Failed."
 
 chmod 644 /usr/share/pixmaps/firefox.png
 chown root:root /usr/share/pixmaps/firefox.png
